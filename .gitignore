@@ -1,0 +1,9 @@
+fuzzy_clustering
+test
+*.out
+*.o
+*.cmake
+CMakeFiles/
+Makefile
+!CMakeLists.txt
+
