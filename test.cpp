@@ -53,8 +53,7 @@ int main (int argc, char **argv) {
 
   SoftC::Fuzzy f (dataset, number_clusters, fuzziness, epsilon, dist_type, init_type);
 
-  // これは何ステップやるかというだけで
-  // cv::kmeansのように初期化を繰り返すわけではない
+  // Note: This does not mean iteration initization.
   unsigned int num_iterations = 100;
   f.clustering (num_iterations);
 

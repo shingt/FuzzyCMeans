@@ -53,7 +53,6 @@ namespace SoftC {
         };
 
       void initEverything ();
-
       void initRandom ();
       void initKmeansPP ();
 
@@ -72,11 +71,6 @@ namespace SoftC {
         return t < epsilon_;
       }
 
-      //
-      // clustering
-      // このnum_iterationは何度も初期化してやり直すという意味ではなく
-      // 単に何ステップ行うか，というだけ
-      // 
       inline void clustering (const unsigned int num_iteration = 10000) {
         unsigned int iteration = 0;
 
@@ -104,7 +98,6 @@ namespace SoftC {
       cv::Mat centroids_;
       cv::Mat membership_;
       cv::Mat new_membership_;
-
       cv::Mat rows_;
   };
 };

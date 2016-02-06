@@ -5,62 +5,40 @@
 namespace SoftC {
 
   void Fuzzy::initRandom () {
-    //
-    // メンバーシップをランダム初期化
-    //
-    std::cout << "C-means Random Initialization" << std::endl;
-
     srand ((unsigned int) time (NULL));
     float normalization_factor;
-
-    for (int j = 0 ; j < number_points_; j++){
+    for (int j = 0 ; j < number_points_; j++) {
       normalization_factor = 0.0;
       for (int i = 0; i < number_clusters_; i++)	
         normalization_factor += 
           membership_.at<float> (j, i) = (rand () / (RAND_MAX + 0.0));
-      // 正規化
+      // Normalization
       for (int i = 0; i < number_clusters_; i++)
         membership_.at<float> (j, i) /= normalization_factor;
     }
-
-    // centroids算出
     computeCentroids();
   }
 
   void Fuzzy::initKmeansPP () {
-    //
-    // k-means++の手法で初期化する場合
-    //
     srand ((unsigned int) time (NULL));
-
     std::vector<int> center_indexes (0);
     std::vector<bool> already_selected_indexes (number_points_, false);
 
-    // ランダムに最初の重心を選択
+    // Select first cluster centroids by random.
     int first_index = rand () % number_points_;
-
-//    std::cout << "first index: " << first_index << std::endl;
-
     center_indexes.push_back (first_index);
     already_selected_indexes[first_index] = true;
 
     while (center_indexes.size () < number_clusters_) {
-
-      // すべてのデータ点に対して
-      // 最近傍の重心を見つけその距離を算出
       std::vector<float> nearest_distances (number_points_, 0.0);
-
       for (int p = 0; p < number_points_; ++p) {
-
-        // 既にcentroidsとして選択済みの場合は考えない
         if (already_selected_indexes[p])
           continue;
 
-        // pは各点のindexに対応
         cv::Mat point = rows_.row (p);
         std::vector<float> distances_from_centers (0);
 
-        // 全ての重心との距離を計算
+        // Calculate distances from all centroids.
         for (int c = 0; c < center_indexes.size (); ++c) {
           int center_index = center_indexes[c];
           cv::Mat center = rows_.row (center_index);
@@ -68,7 +46,7 @@ namespace SoftC {
           distances_from_centers.push_back (dist);
         }
 
-        // 最近傍の重心を見つける
+        // Find nearest centroid.
         int nearest_center_index = center_indexes[0];
         float min = distances_from_centers[0];
         for (int c = 1; c < distances_from_centers.size (); ++c) {
@@ -78,13 +56,11 @@ namespace SoftC {
             nearest_center_index = center_indexes[c];
           }
         }
-
         nearest_distances[p] = min;
       }
 
       assert (nearest_distances.size () == number_points_);
 
-      // 上記のうち距離が最長のものを重心に加える
       float max = nearest_distances[0];
       float max_index = 0;
       for (int p = 1; p < nearest_distances.size (); ++p) {
@@ -94,25 +70,18 @@ namespace SoftC {
           max_index = p;
         }
       }
-
-      // 重心として選択
       center_indexes.push_back (max_index);
       already_selected_indexes[max_index] = true;
     }
 
-    // centroidsを上記の点にセットする
     for (int j = 0; j < center_indexes.size (); ++j) {
-      // FIXME
-      // めっちゃworkaroundだが，完全一致だとupdate_membershipで
-      // 分母が0になってしまったときに問題が．．．
       for (int d = 0; d < dimension_; ++d) {
+        // FIXME: Avoid zero devide.
         centroids_.at<float> (j, d) = rows_.at<float> (center_indexes[j], d) + 0.001;
       }
     }
 
-    // membershipをアップデート
     updateMembership ();
-    // 初期化からははみ出るが，ふたたびcenroids算出
     computeCentroids2();
   }
 
@@ -129,12 +98,8 @@ namespace SoftC {
     }
   }
 
-  //
-  // centroidsの初期化
-  //
   void Fuzzy::computeCentroids(){
-    
-    // centroidの更新
+    // Update centroids
     for (int j = 0; j < number_clusters_; j++)
       for (int i = 0 ; i < number_points_; i++)	
         for (int f = 0; f < dimension_; f++)
@@ -147,32 +112,31 @@ namespace SoftC {
     for (int j = 0; j < number_clusters_; j++)
       for (int i = 0 ; i < number_points_; i++)
         sum_uk[j] += membership_.at<float> (j, i);
-    // 正規化
+    // Normalization
     for (int j = 0; j < number_clusters_; j++)
       for (int f = 0 ; f < dimension_; f++)
         centroids_.at<float> (j, f) /= sum_uk[j];
   }
 
-  // 初期化以外
   void Fuzzy::computeCentroids2 (){
     cv::Mat u_ji_m  = cv::Mat::zeros (number_points_, number_clusters_, CV_32FC1);
-    float normalization;
 
-    //　初期化
+    //　Initialization
     for (int j = 0; j < number_clusters_; j++)
       for (int f = 0; f < dimension_; f++)
         centroids_.at<float> (j, f) = 0.0;
-    // 重みをfuzziness乗したものを計算する
+    // weight ** fuzziness
     for (int j = 0; j < number_clusters_; j++)
       for (int i = 0 ; i < number_points_; i++)
         u_ji_m.at<float> (i, j) = pow ( membership_.at<float> (i, j), fuzziness_);
-    // centroidの更新．この後に正規化（分母）が必要
+    // Update centroids
     for (int j = 0; j < number_clusters_; j++)
       for (int i = 0 ; i < number_points_; i++)	
         for (int f = 0; f < dimension_; f++)
           centroids_.at<float> (j, f) += u_ji_m.at<float> (i, j) * rows_.at<float> (i, f);
 
-    // 点の正規化
+    // Normalization
+    float normalization;
     for (int j = 0; j < number_clusters_; j++){
       normalization = 0.0;
       for (int i = 0 ; i < number_points_; i++) 
@@ -183,8 +147,8 @@ namespace SoftC {
   }
 
   float Fuzzy::calc_dist (
-      const cv::Mat &point,   // 行ベクトル
-      const cv::Mat &center,  // 行ベクトル
+      const cv::Mat &point,
+      const cv::Mat &center,
       const SoftCDistType dist_type
       )
   {
@@ -194,7 +158,7 @@ namespace SoftC {
     switch (dist_type) {
       case kSoftCDistL1:
         {
-          // L1, マンハッタン
+          // L1, Manhattan
           for (int d = 0; d < dimension; d++) {
             f_dist += fabs (point.at<float> (0,d) - center.at<float> (0,d));
           }
@@ -202,17 +166,16 @@ namespace SoftC {
         break;
       case kSoftCDistL2:
         {
-          // L2, ユークリッド
+          // L2, Euclid
           for (int d = 0; d < dimension; d++) {
             float t = point.at<float> (0,d) - center.at<float> (0,d);
             f_dist += t * t;
           }
         }
         break;
-      case kSoftCDistHistInter:   // 未実装
+      case kSoftCDistHistInter:   // TODO
         {
           // HIstogram intersection
-          // computer vision最先端ガイド3より
           float sum_p = 0.f;
           for (int d = 0; d < dimension; d++) {
             float p = point.at<float> (0,d);
@@ -226,31 +189,21 @@ namespace SoftC {
         }
         break;
       default:
-        std::cout << "Error while calculating distance for clustering"
-          << std::endl;
+        std::cout << "Error while calculating distance for clustering" << std::endl;
         break;
     }
     return f_dist;
   }
 
-  //
-  // メンバーシップを更新  
-  //     
   bool Fuzzy::updateMembership () {
-
-    // i番目の点とj番目のクラスタの中心点の距離(norm)を格納
-    cv::Mat matrix_norm_one_xi_minus_cj 
-      = cv::Mat::zeros (number_clusters_, number_points_, CV_32FC1);
-
-    //
-    // 距離の初期化
-    //
+    cv::Mat matrix_norm_one_xi_minus_cj = cv::Mat::zeros (number_clusters_, number_points_, CV_32FC1);
+    // Initialization
     for (unsigned int i = 0 ; i < number_points_; i++)
-      for (unsigned int j = 0; j < number_clusters_; j++)
+      for (unsigned int j = 0; j < number_clusters_; j++) 
         matrix_norm_one_xi_minus_cj.at<float> (j, i) = 0.0;
 
     for (unsigned int i = 0 ; i < number_points_; i++) {
-      // 各クラスタからの距離を計算
+      // Calculate distances from each cluter.
       cv::Mat point = rows_.row (i);
       for (unsigned int j = 0; j < number_clusters_; j++) {
         cv::Mat center = centroids_.row (j);
@@ -260,8 +213,8 @@ namespace SoftC {
     }
 
     float coeff;
-    for (unsigned int i = 0 ; i < number_points_; i++)
-      for (unsigned int j = 0; j < number_clusters_; j++){
+    for (unsigned int i = 0 ; i < number_points_; i++) {
+      for (unsigned int j = 0; j < number_clusters_; j++) {
         coeff = 0.0;
         for (unsigned int k = 0; k < number_clusters_; k++) {
 
@@ -282,9 +235,9 @@ namespace SoftC {
           new_membership_.at<float> (i, j) = 1.0 / coeff;
 //        }
       }
+    }
 
     if (!can_stop() ){
-      // 終了しない場合は更新
       membership_ = new_membership_.clone ();
       return false; 
     }
